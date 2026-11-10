@@ -2,7 +2,8 @@
 #
 # Dagelijks (schedule): conditionele sync met --alleen-bij-wijziging — bij een
 # 304 van de bron (exitcode 3) worden herbouw en uitrol overgeslagen.
-# Handmatig (workflow_dispatch): altijd volledige sync + build + uitrol.
+# Handmatig (workflow_dispatch) of een push naar main: altijd volledige sync +
+# build + uitrol (docs-only pushes zijn uitgezonderd via paths-ignore hieronder).
 #
 # Uitrol gaat via FTPS (expliciete FTP over TLS) naar de gedeelde Vimexx-
 # hosting; het account is gechroot in de webmap van het domein, dus het
@@ -25,6 +26,14 @@
 name: Bouw en uitrol
 
 on:
+  push:
+    branches: [main]
+    # Docs/CI-only wijzigingen hoeven geen volledige uitrol te starten.
+    paths-ignore:
+      - "README.md"
+      - "LICENSE"
+      - "docs/**"
+      - ".github/**"
   schedule:
     - cron: "17 4 * * *" # dagelijks 04:17 UTC (05:17/06:17 NL)
   workflow_dispatch:
@@ -38,9 +47,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 170
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -50,7 +59,7 @@ jobs:
       # cache.db van de vorige run terughalen zodat de conditionele sync met
       # de bewaarde ETag/Last-Modified-validators kan werken.
       - name: Vorige cache.db terughalen
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: data/cache.db
           key: cachedb-${{ github.run_id }}
@@ -73,12 +82,12 @@ jobs:
             exit "$code"
           fi
 
-      - name: Sync (handmatig, volledig)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Sync (handmatig of bij push, volledig)
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
         run: npm run sync
 
       - name: Statische build
-        if: github.event_name == 'workflow_dispatch' || steps.sync.outputs.gewijzigd == 'ja'
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || steps.sync.outputs.gewijzigd == 'ja'
         # De cp is een vangnet: de .htaccess van Richard (public/.htaccess,
         # sinds 11 sept 2026 is de repo-versie leidend) moet gegarandeerd in
         # out/ zitten, ook als de export verborgen bestanden zou overslaan.
@@ -104,7 +113,7 @@ jobs:
       # .htaccess gaat sinds 11 sept 2026 juist wél mee, want de versie in
       # de repository (public/.htaccess) is leidend.
       - name: Uitrol via FTPS
-        if: github.event_name == 'workflow_dispatch' || steps.sync.outputs.gewijzigd == 'ja'
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || steps.sync.outputs.gewijzigd == 'ja'
         env:
           FTPS_HOST: ${{ secrets.FTPS_HOST }}
           FTPS_GEBRUIKER: ${{ secrets.FTPS_GEBRUIKER }}
@@ -177,8 +186,8 @@ jobs:
           LFTP
 
       - name: cache.db bewaren voor de volgende run
-        if: github.event_name == 'workflow_dispatch' || steps.sync.outputs.gewijzigd == 'ja'
-        uses: actions/cache/save@v4
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || steps.sync.outputs.gewijzigd == 'ja'
+        uses: actions/cache/save@v6
         with:
           path: data/cache.db
           key: cachedb-${{ github.run_id }}
