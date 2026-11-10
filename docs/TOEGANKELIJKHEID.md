@@ -102,6 +102,9 @@ Legenda: ✅ voldoet · 🟡 voldoet met kanttekening · ⚠️ aandachtspunt/af
    sorteer-keuzelijst ruimer gemaakt. (2.5.8)
 6. **Persistente live-regio's** — de GPS-melding en de locatiemelding worden nu
    aangekondigd vanuit een regio die al vóór de wijziging bestaat. (4.1.3)
+7. **Oriëntatie** — de geïnstalleerde app (`manifest.webmanifest`) stond vast op
+   `portrait-primary` en draaide op een liggende tablet niet mee; dit staat nu op
+   `any`. (1.3.4)
 
 ## 5. Bekende afwijkingen en aandachtspunten
 
